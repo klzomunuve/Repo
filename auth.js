@@ -1,37 +1,36 @@
-const express = require("express");
+import express from 'express';
+import User from '../models/User.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
 const router = express.Router();
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = process.env.JWT_SECRET;
-
-// REGISTER
-router.post("/register", async (req, res) => {
-  const { email, password } = req.body;
-
-  const existingUser = await User.findOne({ email });
-  if (existingUser) return res.json({ error: "User already exists" });
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newUser = new User({ email, password: hashedPassword });
-
-  await newUser.save();
-  res.json({ message: "User registered successfully" });
+router.post('/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const hash = await bcrypt.hash(password, 10);
+    const user = new User({ email, password: hash });
+    await user.save();
+    res.json({ message: "User registered" });
+  } catch (err) {
+    res.status(500).json({ error: "Registration failed" });
+  }
 });
 
-// LOGIN
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) return res.status(400).json({ error: "User not found" });
 
-  const user = await User.findOne({ email });
-  if (!user) return res.json({ error: "User not found" });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(400).json({ error: "Wrong password" });
 
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) return res.json({ error: "Wrong password" });
-
-  const token = jwt.sign({ id: user._id }, JWT_SECRET);
-  res.json({ token });
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET);
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: "Login failed" });
+  }
 });
 
-module.exports = router;
+export default router;
